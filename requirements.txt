@@ -1,6 +1,6 @@
 streamlit 
 ultralytics 
 inference-sdk 
-opencv-python 
+opencv-python-headless
 Pillow 
 numpy
