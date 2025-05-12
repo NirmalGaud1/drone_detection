@@ -10,10 +10,10 @@ import os
 
 # Initialize Roboflow client
 ROBOFLOW_CLIENT = InferenceHTTPClient(
-    api_url="https://detect.roboflow.com",
+    api_url="https://detect.roboflow.com",  # Standard inference endpoint
     api_key="dvO9HlZOMA5WCA7NoXtQ"
 )
-MODEL_ID = "drones_new/3"
+MODEL_ID = "dronedet-9ndje/2"  # Roboflow model ID
 
 # Configure Google Generative AI
 API_KEY = "AIzaSyA-9-lTQTWdNM43YdOXMQwGKDy0SrMwo6c"
@@ -77,7 +77,7 @@ def analyze_frame_with_gemini(frame):
         uploaded_file = genai.upload_file(temp_file.name)
         
         # Prompt Gemini to describe the frame
-        prompt = "Describe this image. Does it likely contain a drone?"
+        prompt = "Describe this image in detail. Does it likely contain a drone? If so, describe its approximate location (e.g., center, top-left)."
         response = GEMINI_MODEL.generate_content([prompt, uploaded_file])
         
         # Clean up
@@ -106,7 +106,7 @@ def main():
     
     # Input selection
     input_option = st.selectbox(
-        "Select Input Type",
+        "Select密切Input Type",
         ["Image Upload", "Image URL", "Webcam", "Video Upload"]
     )
 
@@ -118,12 +118,13 @@ def main():
             
             if st.button("Detect Drones"):
                 try:
+                    # Roboflow detection
                     results = ROBOFLOW_CLIENT.infer(image, model_id=MODEL_ID)
                     processed_image = process_detections(image, results, conf_threshold)
                     st.image(processed_image, caption="Detection Result with Bounding Boxes", use_column_width=True)
                     st.json(results)
                     
-                    # Analyze with Gemini
+                    # Gemini analysis
                     st.write("Analyzing image with Google Generative AI...")
                     gemini_result = analyze_frame_with_gemini(np.array(image))
                     st.write("Gemini Analysis:", gemini_result)
@@ -141,12 +142,13 @@ def main():
                     
                     if st.button("Detect Drones"):
                         try:
+                            # Roboflow detection
                             results = ROBOFLOW_CLIENT.infer(url, model_id=MODEL_ID)
                             processed_image = process_detections(image, results, conf_threshold)
                             st.image(processed_image, caption="Detection Result with Bounding Boxes", use_column_width=True)
                             st.json(results)
                             
-                            # Analyze with Gemini
+                            # Gemini analysis
                             st.write("Analyzing image with Google Generative AI...")
                             gemini_result = analyze_frame_with_gemini(np.array(image))
                             st.write("Gemini Analysis:", gemini_result)
@@ -166,12 +168,13 @@ def main():
             
             if st.button("Detect Drones"):
                 try:
+                    # Roboflow detection
                     results = ROBOFLOW_CLIENT.infer(image, model_id=MODEL_ID)
                     processed_image = process_detections(image, results, conf_threshold)
                     st.image(processed_image, caption="Detection Result with Bounding Boxes", use_column_width=True)
                     st.json(results)
                     
-                    # Analyze with Gemini
+                    # Gemini analysis
                     st.write("Analyzing image with Google Generative AI...")
                     gemini_result = analyze_frame_with_gemini(np.array(image))
                     st.write("Gemini Analysis:", gemini_result)
@@ -205,6 +208,8 @@ def main():
                 if frame_count % frame_skip != 0:
                     continue
                 
+                # Resize frame to reduce API load
+                frame = cv2.resize(frame, (640, 480))
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 pil_image = Image.fromarray(frame)
                 
@@ -214,7 +219,7 @@ def main():
                     processed_frame = process_detections(pil_image, results, conf_threshold)
                     stframe.image(processed_frame, caption=f"Frame {frame_count} with Bounding Boxes", channels="RGB")
                     
-                    # Gemini analysis (on every 10th processed frame to avoid overloading)
+                    # Gemini analysis (on every 10th processed frame)
                     if frame_count % (frame_skip * 10) == 0:
                         st.write(f"Analyzing frame {frame_count} with Google Generative AI...")
                         gemini_result = analyze_frame_with_gemini(frame)
