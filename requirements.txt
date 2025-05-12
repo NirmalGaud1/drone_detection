@@ -1,7 +1,7 @@
-streamlit 
-ultralytics 
-inference-sdk 
-opencv-python
-Pillow 
+streamlit==1.45.0
+opencv-python-headless
+pillow
 numpy
+requests
+inference-sdk
 google-generativeai
