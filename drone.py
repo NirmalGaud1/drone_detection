@@ -7,13 +7,18 @@ import requests
 from inference_sdk import InferenceHTTPClient
 import google.generativeai as genai
 import os
+import logging
+
+# Set up logging to a file
+logging.basicConfig(filename='debug.log', level=logging.DEBUG, 
+                    format='%(asctime)s %(levelname)s: %(message)s')
 
 # Initialize Roboflow client
 ROBOFLOW_CLIENT = InferenceHTTPClient(
-    api_url="https://detect.roboflow.com",  # Standard inference endpoint
+    api_url="https://detect.roboflow.com",
     api_key="dvO9HlZOMA5WCA7NoXtQ"
 )
-MODEL_ID = "dronedet-9ndje/2"  # Roboflow model ID
+MODEL_ID = "dronedet-9ndje/2"
 
 # Configure Google Generative AI
 API_KEY = "AIzaSyA-9-lTQTWdNM43YdOXMQwGKDy0SrMwo6c"
@@ -22,6 +27,7 @@ def configure_generative_model(api_key):
         genai.configure(api_key=api_key)
         return genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
+        logging.error(f"Error configuring generative model: {e}")
         st.error(f"Error configuring the generative model: {e}")
         return None
 
@@ -32,12 +38,11 @@ def process_detections(image, results, conf_threshold):
     image_np = np.array(image)
     image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
     
-    # Debug: Display raw API response
-    st.write("Raw Roboflow Results:", results)
+    # Log results for debugging (not displayed in Streamlit)
+    logging.debug(f"Roboflow Results: {results}")
     
     predictions = results.get('predictions', [])
-    if not predictions:
-        st.warning("No drones detected by Roboflow model.")
+    drone_count = 0
     
     for pred in predictions:
         conf = pred['confidence']
@@ -59,8 +64,9 @@ def process_detections(image, results, conf_threshold):
         cv2.rectangle(image_np, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(image_np, label, (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        drone_count += 1
     
-    return cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
+    return cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB), drone_count
 
 def analyze_frame_with_gemini(frame):
     """Analyze a video frame using Google Generative AI."""
@@ -86,6 +92,7 @@ def analyze_frame_with_gemini(frame):
         
         return response.text
     except Exception as e:
+        logging.error(f"Error analyzing frame with Gemini: {e}")
         return f"Error analyzing frame with Gemini: {str(e)}"
 
 def main():
@@ -95,7 +102,7 @@ def main():
     # Confidence threshold
     conf_threshold = st.sidebar.slider(
         "Confidence Threshold", 
-        0.0, 1.0, 0.5, 0.01
+        0.0, 1.0, 0.3, 0.01  # Lowered default to capture more detections
     )
     
     # Frame skip for video processing
@@ -106,7 +113,7 @@ def main():
     
     # Input selection
     input_option = st.selectbox(
-        "Select密切Input Type",
+        "Select Input Type",
         ["Image Upload", "Image URL", "Webcam", "Video Upload"]
     )
 
@@ -120,15 +127,16 @@ def main():
                 try:
                     # Roboflow detection
                     results = ROBOFLOW_CLIENT.infer(image, model_id=MODEL_ID)
-                    processed_image = process_detections(image, results, conf_threshold)
-                    st.image(processed_image, caption="Detection Result with Bounding Boxes", use_column_width=True)
-                    st.json(results)
+                    processed_image, drone_count = process_detections(image, results, conf_threshold)
+                    st.image(processed_image, caption=f"Detection Result ({drone_count} drones detected)", use_column_width=True)
+                    st.write(f"Number of drones detected: {drone_count}")
                     
                     # Gemini analysis
                     st.write("Analyzing image with Google Generative AI...")
                     gemini_result = analyze_frame_with_gemini(np.array(image))
                     st.write("Gemini Analysis:", gemini_result)
                 except Exception as e:
+                    logging.error(f"Error during image detection: {e}")
                     st.error(f"Error during detection: {str(e)}")
 
     elif input_option == "Image URL":
@@ -144,19 +152,21 @@ def main():
                         try:
                             # Roboflow detection
                             results = ROBOFLOW_CLIENT.infer(url, model_id=MODEL_ID)
-                            processed_image = process_detections(image, results, conf_threshold)
-                            st.image(processed_image, caption="Detection Result with Bounding Boxes", use_column_width=True)
-                            st.json(results)
+                            processed_image, drone_count = process_detections(image, results, conf_threshold)
+                            st.image(processed_image, caption=f"Detection Result ({drone_count} drones detected)", use_column_width=True)
+                            st.write(f"Number of drones detected: {drone_count}")
                             
                             # Gemini analysis
                             st.write("Analyzing image with Google Generative AI...")
                             gemini_result = analyze_frame_with_gemini(np.array(image))
                             st.write("Gemini Analysis:", gemini_result)
                         except Exception as e:
+                            logging.error(f"Error during URL detection: {e}")
                             st.error(f"Error during detection: {str(e)}")
                 else:
                     st.error("Failed to fetch image from URL.")
             except Exception as e:
+                logging.error(f"Error processing URL: {e}")
                 st.error(f"Error processing URL: {str(e)}")
 
     elif input_option == "Webcam":
@@ -170,15 +180,16 @@ def main():
                 try:
                     # Roboflow detection
                     results = ROBOFLOW_CLIENT.infer(image, model_id=MODEL_ID)
-                    processed_image = process_detections(image, results, conf_threshold)
-                    st.image(processed_image, caption="Detection Result with Bounding Boxes", use_column_width=True)
-                    st.json(results)
+                    processed_image, drone_count = process_detections(image, results, conf_threshold)
+                    st.image(processed_image, caption=f"Detection Result ({drone_count} drones detected)", use_column_width=True)
+                    st.write(f"Number of drones detected: {drone_count}")
                     
                     # Gemini analysis
                     st.write("Analyzing image with Google Generative AI...")
                     gemini_result = analyze_frame_with_gemini(np.array(image))
                     st.write("Gemini Analysis:", gemini_result)
                 except Exception as e:
+                    logging.error(f"Error during webcam detection: {e}")
                     st.error(f"Error during detection: {str(e)}")
 
     elif input_option == "Video Upload":
@@ -192,6 +203,7 @@ def main():
             cap = cv2.VideoCapture(tfile.name)
             if not cap.isOpened():
                 st.error("Error: Could not open video file.")
+                logging.error("Could not open video file: %s", tfile.name)
                 os.unlink(tfile.name)
                 return
             
@@ -216,8 +228,9 @@ def main():
                 try:
                     # Roboflow detection
                     results = ROBOFLOW_CLIENT.infer(pil_image, model_id=MODEL_ID)
-                    processed_frame = process_detections(pil_image, results, conf_threshold)
-                    stframe.image(processed_frame, caption=f"Frame {frame_count} with Bounding Boxes", channels="RGB")
+                    processed_frame, drone_count = process_detections(pil_image, results, conf_threshold)
+                    stframe.image(processed_frame, caption=f"Frame {frame_count} ({drone_count} drones detected)", channels="RGB")
+                    st.write(f"Frame {frame_count}: {drone_count} drones detected")
                     
                     # Gemini analysis (on every 10th processed frame)
                     if frame_count % (frame_skip * 10) == 0:
@@ -225,6 +238,7 @@ def main():
                         gemini_result = analyze_frame_with_gemini(frame)
                         st.write(f"Gemini Analysis for Frame {frame_count}:", gemini_result)
                 except Exception as e:
+                    logging.error(f"Error processing frame {frame_count}: {e}")
                     st.error(f"Error processing frame {frame_count}: {str(e)}")
                     break
             
