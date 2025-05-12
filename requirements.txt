@@ -4,3 +4,4 @@ inference-sdk
 opencv-python-headless
 Pillow 
 numpy
+google-generativeai
